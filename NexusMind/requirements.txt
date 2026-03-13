@@ -1,0 +1,26 @@
+# NexusMind — Python Dependencies
+
+# Web UI
+streamlit>=1.35.0
+
+# Vector store
+qdrant-client>=1.9.0
+
+# HTTP / API calls
+requests>=2.31.0
+
+# Document parsing
+pdfplumber>=0.11.0
+pypdf>=4.0.0
+python-docx>=1.1.0
+
+# Environment
+python-dotenv>=1.0.0
+
+# Utilities
+tqdm>=4.66.0
+
+# NOTE: BM25 is implemented from scratch (no extra dependency needed).
+# If you prefer the rank_bm25 library instead, install it:
+#   pip install rank-bm25
+# and swap backend/bm25_index.py to use BM25Okapi from rank_bm25.
