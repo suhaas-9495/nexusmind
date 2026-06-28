@@ -9,6 +9,7 @@ import hashlib
 from uuid import uuid4
 from datetime import datetime
 from backend.config import CHUNK_WORDS, CHUNK_OVERLAP
+from backend.document_registry import registry
 
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -150,13 +151,22 @@ def ingest_document(file_path: str, user_id: Optional[str] = None) -> List[Dict]
     """file → clean text → chunks, optionally tagged with user_id."""
     text = clean_text(extract_text(file_path))
     document_hash = generate_hash(Path(file_path))
-    metadata["checksum"] = document_hash
-    metadata = build_document_metadata(
-        file_path=file_path,
-        document_hash=document_hash,
-        user_id=user_id,
-    )
+    registration = registry.register_document(
+    file_path=file_path,
+    user_id=user_id,
+)
 
+    if registration["duplicate"]:
+        raise ValueError("Document already exists.")
+
+    document_hash = registration["document_hash"]
+    metadata = build_document_metadata(
+    file_path=file_path,
+    document_hash=document_hash,
+    user_id=user_id,
+)
+
+    metadata["version"] = registration["version"]
     chunks = split_into_chunks(text)
 
     for chunk in chunks:
