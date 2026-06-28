@@ -73,8 +73,6 @@ def build_document_metadata(
 
         "uploaded_at": datetime.now().astimezone().isoformat(),
         "uploaded_by": user_id,
-
-        "version": 1,
     }
 
       
@@ -133,44 +131,132 @@ def clean_text(text: str) -> str:
     text = re.sub(r"[ \t]+", " ", text)
     return re.sub(r"\n{3,}", "\n\n", text).strip()
 
-def split_into_chunks(text: str, chunk_words: int = CHUNK_WORDS, overlap_frac: float = CHUNK_OVERLAP) -> List[Dict]:
-    if not text: return []
-    words = text.split(); n = len(words)
-    if n <= chunk_words: return [{"chunk_index": 0, "chunk_text": text, "chunk_words": n}]
-    overlap = max(1, int(chunk_words * overlap_frac)); step = chunk_words - overlap
-    chunks = []; idx = 0
-    for start in range(0, n, step):
-        w = words[start:start + chunk_words]
-        if not w: break
-        chunks.append({"chunk_index": idx, "chunk_text": " ".join(w), "chunk_words": len(w)})
-        idx += 1
-        if start + chunk_words >= n: break
+def split_into_chunks(
+    text: str,
+    chunk_words: int = CHUNK_WORDS,
+    overlap_frac: float = CHUNK_OVERLAP,
+) -> List[Dict]:
+
+    if not text:
+        return []
+
+    words = text.split()
+
+    total_words = len(words)
+
+    if total_words <= chunk_words:
+
+        return [
+            {
+                "chunk_id": str(uuid4()),
+                "chunk_index": 0,
+                "chunk_text": text,
+                "chunk_words": total_words,
+                "start_word": 0,
+                "end_word": total_words,
+                "token_estimate": int(total_words * 1.3),
+            }
+        ]
+
+    overlap = max(
+        1,
+        int(chunk_words * overlap_frac),
+    )
+
+    step = chunk_words - overlap
+
+    chunks = []
+
+    chunk_index = 0
+
+    for start in range(0, total_words, step):
+
+        end = min(
+            start + chunk_words,
+            total_words,
+        )
+
+        chunk_text = " ".join(
+            words[start:end]
+        )
+
+        chunks.append(
+            {
+                "chunk_id": str(uuid4()),
+
+                "chunk_index": chunk_index,
+
+                "chunk_text": chunk_text,
+
+                "chunk_words": len(words[start:end]),
+
+                "start_word": start,
+
+                "end_word": end,
+
+                "token_estimate": int(
+                    len(words[start:end]) * 1.3
+                ),
+            }
+        )
+
+        chunk_index += 1
+
+        if end >= total_words:
+            break
+
     return chunks
 
-def ingest_document(file_path: str, user_id: Optional[str] = None) -> List[Dict]:
-    """file → clean text → chunks, optionally tagged with user_id."""
+def ingest_document(
+    file_path: str,
+    user_id: Optional[str] = None,
+) -> List[Dict]:
+    """
+    Complete document ingestion pipeline.
+
+    1. Validate document
+    2. Extract text
+    3. Clean text
+    4. Register document (duplicate + versioning)
+    5. Chunk document
+    6. Attach document metadata
+    7. Attach chunk metadata
+    """
+
+    # Extract & clean text
     text = clean_text(extract_text(file_path))
-    document_hash = generate_hash(Path(file_path))
+
+    # Register document
     registration = registry.register_document(
-    file_path=file_path,
-    user_id=user_id,
-)
+        file_path=file_path,
+        user_id=user_id,
+    )
 
     if registration["duplicate"]:
         raise ValueError("Document already exists.")
 
     document_hash = registration["document_hash"]
-    metadata = build_document_metadata(
-    file_path=file_path,
-    document_hash=document_hash,
-    user_id=user_id,
-)
+    version = registration["version"]
 
-    metadata["version"] = registration["version"]
+    # Build document metadata
+    metadata = build_document_metadata(
+        file_path=file_path,
+        document_hash=document_hash,
+        user_id=user_id,
+    )
+
+    metadata["version"] = version
+
+    # Create chunks
     chunks = split_into_chunks(text)
 
+    # Attach metadata to every chunk
     for chunk in chunks:
 
         chunk.update(metadata)
+
+        chunk["embedding_model"] = "BAAI/bge-small-en-v1.5"
+
+        chunk["is_active"] = True
 
     return chunks
