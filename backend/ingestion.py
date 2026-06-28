@@ -1,19 +1,114 @@
 """
-NexusMind v2 — Document Ingestion
-Supports: PDF, DOCX, TXT. Tags chunks with user_id for access control.
+ Document Ingestion just support the necessary one nothing much in this code window !!!
+Supports: PDF, DOCX, TXT.
 """
 import re, html
 from pathlib import Path
 from typing import List, Dict, Optional
+import hashlib
+from uuid import uuid4
+from datetime import datetime
 from backend.config import CHUNK_WORDS, CHUNK_OVERLAP
 
-def extract_text(file_path: str) -> str:
+
+MAX_FILE_SIZE = 50 * 1024 * 1024
+
+SUPPORTED_EXTENSIONS = {
+    ".pdf",
+    ".docx",
+    ".txt",
+    ".md",
+}
+
+
+
+def validate_exists(path : Path):
+    if not path.exists():
+        raise FileNotFoundError(f"{path} does not exist.")
+    
+def validate_size(path: Path):
+    size = path.stat().st_size
+    
+    if size == 0:
+        raise ValueError("Document is empty")
+    if size > MAX_FILE_SIZE:
+        raise ValueError(
+            f"File exceeds {MAX_FILE_SIZE // (1024 * 1024)} MB.")
+
+def validate_extension(path: Path):
+    if path.suffix.lower() not in SUPPORTED_EXTENSIONS:
+        raise ValueError(
+            f"Unsupported extension: {path.suffix}"
+        )
+
+
+def generate_hash(path: Path):
+
+    sha = hashlib.sha256()
+
+    with open(path, "rb") as file:
+
+        while chunk := file.read(8192):
+            sha.update(chunk)
+
+    return sha.hexdigest()
+
+
+def build_document_metadata(
+    file_path: str,
+    document_hash: str,
+    user_id: Optional[str] = None,
+) -> Dict:
+
     path = Path(file_path)
+
+    return {
+        "document_id": str(uuid4()),
+        "document_hash": document_hash,
+
+        "file_name": path.name,
+        "file_extension": path.suffix.lower(),
+        "file_size": path.stat().st_size,
+
+        "uploaded_at": datetime.now().astimezone().isoformat(),
+        "uploaded_by": user_id,
+
+        "version": 1,
+    }
+
+      
+    
+def extract_text(file_path: str) -> str:
+
+    path = Path(file_path)
+
+    validate_exists(path)
+    validate_size(path)
+    validate_extension(path)
+
     suffix = path.suffix.lower()
-    if suffix == ".pdf": return _extract_pdf(file_path)
-    elif suffix == ".docx": return _extract_docx(file_path)
-    elif suffix in (".txt", ".md"): return path.read_text(encoding="utf-8", errors="ignore")
-    else: raise ValueError(f"Unsupported: {suffix}")
+
+    if suffix == ".pdf":
+        text = _extract_pdf(file_path)
+
+    elif suffix == ".docx":
+        text = _extract_docx(file_path)
+
+    elif suffix in (".txt", ".md"):
+        text = path.read_text(
+            encoding="utf-8",
+            errors="ignore"
+        )
+
+    else:
+        raise ValueError(f"Unsupported: {suffix}")
+
+    if len(text.strip()) < 100:
+        raise ValueError(
+            "Document contains too little text."
+        )
+
+    return text
 
 def _extract_pdf(file_path):
     try:
@@ -53,7 +148,19 @@ def split_into_chunks(text: str, chunk_words: int = CHUNK_WORDS, overlap_frac: f
 
 def ingest_document(file_path: str, user_id: Optional[str] = None) -> List[Dict]:
     """file → clean text → chunks, optionally tagged with user_id."""
-    chunks = split_into_chunks(clean_text(extract_text(file_path)))
-    if user_id:
-        for c in chunks: c["user_id"] = user_id
+    text = clean_text(extract_text(file_path))
+    document_hash = generate_hash(Path(file_path))
+    metadata["checksum"] = document_hash
+    metadata = build_document_metadata(
+        file_path=file_path,
+        document_hash=document_hash,
+        user_id=user_id,
+    )
+
+    chunks = split_into_chunks(text)
+
+    for chunk in chunks:
+
+        chunk.update(metadata)
+
     return chunks
