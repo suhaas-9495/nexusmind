@@ -1,6 +1,6 @@
 """
 NexusMind v2 — FastAPI Backend
-Production-grade REST API replacing Streamlit.
+Production-grade REST API.
 """
 
 import time
@@ -51,7 +51,7 @@ app.add_middleware(
 )
 
 
-# ── Request logging middleware ────────────────────────────────────────────────
+# Request logging middleware
 @app.middleware("http")
 async def log_requests(request, call_next):
     request_id = str(uuid.uuid4())[:8]
@@ -75,7 +75,7 @@ async def log_requests(request, call_next):
         raise
 
 
-# ── Routers ───────────────────────────────────────────────────────────────────
+#  Router
 app.include_router(upload.router, prefix="/upload-doc", tags=["Documents"])
 app.include_router(query.router,  prefix="/query",      tags=["Query"])
 app.include_router(chat.router,   prefix="/chat",       tags=["Chat"])
