@@ -1,62 +1,56 @@
-"""
-NexusMind v2 — Retrieval
-Cosine-similarity search in Qdrant with optional user_id access control.
-"""
-
 import os
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import Filter, FieldCondition, MatchValue
 
-from backend.config import QDRANT_URL, COLLECTION_NAME, TOP_K
+from backend.config import (
+    COLLECTION_NAME,
+    QDRANT_URL,
+    TOP_K,
+)
 
-_client: QdrantClient | None = None
+from backend.retrievers.dense import DenseRetriever
+
+_client = None
 
 
 def get_client() -> QdrantClient:
+
     global _client
+
     if _client is None:
         _client = QdrantClient(url=QDRANT_URL)
+
     return _client
 
 
+_dense = None
+
+
+def get_dense_retriever():
+
+    global _dense
+
+    if _dense is None:
+        _dense = DenseRetriever(get_client())
+
+    return _dense
+
+
 def retrieve_similar_chunks(
-    query_vector:    List[float],
-    top_k:           Optional[int] = None,
+    query_vector: List[float],
+    top_k: Optional[int] = None,
     score_threshold: float = 0.0,
-    source_filter:   Optional[str] = None,
-    user_id:         Optional[str] = None,    # 🔐 document-level access control
+    source_filter: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> List[Dict]:
-    """
-    Search Qdrant for the most similar chunks.
-    When user_id is provided, only returns chunks uploaded by that user.
-    """
-    client = get_client()
-    k = top_k or int(os.environ.get("TOP_K", TOP_K))
 
-    # Build filter: combine source_filter AND user_id if both provided
-    must_conditions = []
-    if source_filter:
-        must_conditions.append(FieldCondition(key="source", match=MatchValue(value=source_filter)))
-    if user_id:
-        must_conditions.append(FieldCondition(key="user_id", match=MatchValue(value=user_id)))
+    k = top_k or int(os.getenv("TOP_K", TOP_K))
 
-    query_filter = Filter(must=must_conditions) if must_conditions else None
-
-    results = client.query_points(
-        collection_name=COLLECTION_NAME,
-        query=query_vector,
-        limit=k,
-        query_filter=query_filter,
-    ).points
-
-    retrieved = []
-    for r in results:
-        if r.score < score_threshold:
-            continue
-        payload = dict(r.payload or {})
-        payload["score"] = round(r.score, 4)
-        retrieved.append(payload)
-
-    return retrieved
+    return get_dense_retriever().search(
+        query_vector=query_vector,
+        top_k=k,
+        score_threshold=score_threshold,
+        source_filter=source_filter,
+        user_id=user_id,
+    )
