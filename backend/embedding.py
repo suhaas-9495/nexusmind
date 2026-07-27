@@ -1,8 +1,3 @@
-"""
-NexusMind – Embedding
-Uses Ollama's local embedding model (default: nomic-embed-text).
-"""
-
 import os
 import requests
 from typing import List
@@ -19,7 +14,9 @@ def embed_texts(texts: List[str], model: str | None = None) -> List[List[float]]
     url   = f"{OLLAMA_BASE_URL}/api/embeddings"
 
     embeddings: List[List[float]] = []
-
+    
+    
+    session = requests.Session()
     for text in texts:
         if not text.strip():
             # Return zero vector for empty strings (Qdrant needs consistent dims)
@@ -27,9 +24,11 @@ def embed_texts(texts: List[str], model: str | None = None) -> List[List[float]]
             continue
 
         payload = {"model": model, "prompt": text}
-        resp    = requests.post(url, json=payload, timeout=60)
+        resp    = session.post(url, json=payload, timeout=60)
         resp.raise_for_status()
         embeddings.append(resp.json()["embedding"])
+        
+        session.close()
 
     return embeddings
 

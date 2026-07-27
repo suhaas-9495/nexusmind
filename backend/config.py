@@ -25,6 +25,7 @@ class Settings:
     AGENT_TIMEOUT_SEC: int   = int(os.getenv("AGENT_TIMEOUT_SEC", "120"))
     JWT_SECRET_KEY:    str   = os.getenv("JWT_SECRET_KEY", "CHANGE_ME_IN_PRODUCTION")
     JWT_EXPIRE_SECS:   int   = int(os.getenv("JWT_EXPIRE_SECS", "86400"))
+    CROSS_ENCODER_MODEL = os.getenv("CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
 
 settings = Settings()
 
