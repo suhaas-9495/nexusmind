@@ -1,7 +1,7 @@
 from pathlib import Path
 from typing import Optional
 
-from backend.ingestion import generate_hash
+from backend.utils.hashing import generate_hash
 
 
 class DocumentRegistry:

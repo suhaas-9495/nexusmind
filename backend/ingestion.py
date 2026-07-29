@@ -5,11 +5,11 @@ Supports: PDF, DOCX, TXT.
 import re, html
 from pathlib import Path
 from typing import List, Dict, Optional
-import hashlib
 from uuid import uuid4
 from datetime import datetime
 from backend.config import CHUNK_WORDS, CHUNK_OVERLAP
 from backend.document_registry import registry
+from backend.utils.hashing import generate_hash
 
 
 MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -41,18 +41,6 @@ def validate_extension(path: Path):
         raise ValueError(
             f"Unsupported extension: {path.suffix}"
         )
-
-
-def generate_hash(path: Path):
-
-    sha = hashlib.sha256()
-
-    with open(path, "rb") as file:
-
-        while chunk := file.read(8192):
-            sha.update(chunk)
-
-    return sha.hexdigest()
 
 
 def build_document_metadata(
